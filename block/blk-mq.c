@@ -517,6 +517,9 @@ inline void __blk_mq_end_request(struct request *rq, blk_status_t error)
 		blk_stat_add(rq, now);
 	}
 
+	if (rq->internal_tag != -1)
+		blk_mq_sched_completed_request(rq, now);
+
 	blk_account_io_done(rq, now);
 
 	if (rq->end_io) {
@@ -551,8 +554,8 @@ static void __blk_mq_complete_request(struct request *rq)
 	bool shared = false;
 	int cpu;
 
-	if (rq->internal_tag != -1)
-		blk_mq_sched_completed_request(rq);
+	if (!blk_mark_rq_complete(rq))
+		return;
 
 	if (!test_bit(QUEUE_FLAG_SAME_COMP, &rq->q->queue_flags)) {
 		rq->q->softirq_done_fn(rq);
