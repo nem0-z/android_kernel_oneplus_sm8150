@@ -1,0 +1,25 @@
+## Build Information
+```
+Kernel: nem0 Kernel
+Type: Stable
+Device: OnePlus 7/T/Pro
+Compiler: Proton Clang 13.0.0
+Branch: master
+Build Number: 1.9
+```
+## Changelog
+```
+-1.9:
+-Scheduler improvements
+*Disable RUNTIME_SHARE and TTWU_QUEUE scheduler features
+-msm/kgsl code cleanup
+-1.8:
+-Upstream kernel to 4.14.222
+-Strip down Qualcomm's ufs pm_qos implementation and replace with much simpler Sultan's solution
+-Cleanup remaining ufs pm_qos code
+-Remove L2PC pm_qos feature
+-Remove IRQF_NO_SUSPEND flag from smp2p driver
+-Tentatively bring back LTO builds
+-Integrate OTA updates in Franco's Karamel Manager (link for the json: https://raw.githubusercontent.com/nem0-z/android_kernel_oneplus_sm8150/master/ota/update.json)
+
+```

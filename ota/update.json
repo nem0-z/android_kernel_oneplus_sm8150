@@ -1,0 +1,13 @@
+{
+  "kernel": {
+    "name": "nem0 Kernel",
+    "version": "v1.9",
+    "link": "https://github.com/nem0-z/android_kernel_oneplus_sm8150/releases/download/1.9/nem0-Kernel-v1.9.zip",
+    "changelog_url": "https://raw.githubusercontent.com/nem0-z/android_kernel_oneplus_sm8150/master/ota/changelog",
+    "date": "2021-02-28",
+    "sha1": "ef49bf875c783630003d66490023e99398144ebe"
+  },
+  "support": {
+    "link": "https://t.me/nem0kernel"
+  }
+}
