@@ -1,0 +1,13 @@
+{
+  "kernel": {
+    "name": "nem0 Kernel",
+    "version": "labs-v84",
+    "link": "https://github.com/nem0-z/android_kernel_oneplus_sm8150/releases/download/v84/nem0-z-labs-v84.zip",
+    "changelog_url": "https://raw.githubusercontent.com/nem0-z/android_kernel_oneplus_sm8150/labs/updater/changelog",
+    "date": "2021-02-25",
+    "sha1": "045bc638028d63b5f667b08068a4a4ae3884cd5f"
+  },
+  "support": {
+    "link": "https://t.me/nem0kernel"
+  }
+}
