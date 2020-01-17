@@ -48,7 +48,6 @@
 #include <linux/in.h>
 #include <linux/sched.h>
 #include <linux/audit.h>
-#include <linux/mutex.h>
 #include <linux/vmalloc.h>
 #include <net/netlabel.h>
 
@@ -80,19 +79,11 @@ const char *selinux_policycap_names[__POLICYDB_CAPABILITY_MAX] = {
 
 static struct selinux_ss selinux_ss;
 
-static DEFINE_RWLOCK(policy_rwlock);
-
-static struct sidtab sidtab;
-struct policydb policydb;
-int ss_initialized __rticdata;
-
-/*
- * The largest sequence number that has been used when
- * providing an access decision to the access vector cache.
- * The sequence number only changes when a policy change
- * occurs.
- */
-static u32 latest_granting;
+void selinux_ss_init(struct selinux_ss **ss)
+{
+	rwlock_init(&selinux_ss.policy_rwlock);
+	*ss = &selinux_ss;
+}
 
 /* Forward declaration. */
 static int context_struct_to_string(struct policydb *policydb,
