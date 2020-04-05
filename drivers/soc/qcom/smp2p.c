@@ -642,7 +642,6 @@ static int qcom_smp2p_probe(struct platform_device *pdev)
 
 	smp2p->irq = platform_get_irq(pdev, 0);
 	if (smp2p->irq < 0) {
-		dev_err(&pdev->dev, "unable to acquire smp2p interrupt\n");
 		return smp2p->irq;
 	}
 
