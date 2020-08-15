@@ -395,7 +395,7 @@ _last_literals:
 			*op++ = (BYTE)(lastRun << ML_BITS);
 		}
 
-		memcpy(op, anchor, lastRun);
+		LZ4_memcpy(op, anchor, lastRun);
 
 		op += lastRun;
 	}
@@ -463,6 +463,5 @@ int LZ4_compress_default(const char *source, char *dest, int inputSize,
 		maxOutputSize, LZ4_ACCELERATION_DEFAULT, wrkmem);
 }
 EXPORT_SYMBOL(LZ4_compress_default);
-
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_DESCRIPTION("LZ4 compressor");
