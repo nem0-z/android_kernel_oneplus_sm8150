@@ -49,20 +49,21 @@ struct diag_pcie_info diag_pcie[NUM_DIAG_PCIE_DEV] = {
 		},
 		.in_chan = MHI_CLIENT_DIAG_OUT,
 		.out_chan = MHI_CLIENT_DIAG_IN,
-	}
-};
+	}};
 
 static void diag_pcie_event_notifier(struct mhi_dev_client_cb_reason *reason)
 {
 	int i;
 	struct diag_pcie_info *pcie_info = NULL;
 
-	for (i = 0; i < NUM_DIAG_PCIE_DEV; i++) {
+	for (i = 0; i < NUM_DIAG_PCIE_DEV; i++)
+	{
 		pcie_info = &diag_pcie[i];
 		if (reason->reason == MHI_DEV_TRE_AVAILABLE)
-			if (reason->ch_id == pcie_info->in_chan) {
+			if (reason->ch_id == pcie_info->in_chan)
+			{
 				queue_work(pcie_info->wq,
-					&pcie_info->read_work);
+						   &pcie_info->read_work);
 				break;
 			}
 	}
@@ -72,8 +73,8 @@ void diag_pcie_read_work_fn(struct work_struct *work)
 {
 	struct mhi_req ureq;
 	struct diag_pcie_info *pcie_info = container_of(work,
-						      struct diag_pcie_info,
-						      read_work);
+													struct diag_pcie_info,
+													read_work);
 	unsigned int bytes_avail = 0;
 
 	if (!pcie_info || !atomic_read(&pcie_info->enabled) ||
@@ -90,30 +91,32 @@ void diag_pcie_read_work_fn(struct work_struct *work)
 	if (bytes_avail < 0)
 		return;
 	DIAG_LOG(DIAG_DEBUG_MUX, "read total bytes %d from chan:%d",
-		bytes_avail, pcie_info->in_chan);
+			 bytes_avail, pcie_info->in_chan);
 	pcie_info->read_cnt++;
 
 	if (pcie_info->ops && pcie_info->ops->read_done)
 		pcie_info->ops->read_done(pcie_info->in_chan_attr.read_buffer,
-					ureq.transfer_len, pcie_info->ctxt);
-
+								  ureq.transfer_len, pcie_info->ctxt);
 }
 
 static void diag_pcie_buf_tbl_remove(struct diag_pcie_info *pcie_info,
-				    unsigned char *buf)
+									 unsigned char *buf)
 {
 	struct diag_pcie_buf_tbl_t *temp = NULL;
 	struct diag_pcie_buf_tbl_t *entry = NULL;
 
-	list_for_each_entry_safe(entry, temp, &pcie_info->buf_tbl, track) {
-		if (entry->buf == buf) {
+	list_for_each_entry_safe(entry, temp, &pcie_info->buf_tbl, track)
+	{
+		if (entry->buf == buf)
+		{
 			DIAG_LOG(DIAG_DEBUG_MUX, "ref_count-- for %pK\n", buf);
 			atomic_dec(&entry->ref_count);
 			/*
 			 * Remove reference from the table if it is the
 			 * only instance of the buffer
 			 */
-			if (atomic_read(&entry->ref_count) == 0) {
+			if (atomic_read(&entry->ref_count) == 0)
+			{
 				list_del(&entry->track);
 				kfree(entry);
 				entry = NULL;
@@ -124,14 +127,16 @@ static void diag_pcie_buf_tbl_remove(struct diag_pcie_info *pcie_info,
 }
 
 static struct diag_pcie_buf_tbl_t *diag_pcie_buf_tbl_get(
-				struct diag_pcie_info *pcie_info,
-				unsigned char *buf)
+	struct diag_pcie_info *pcie_info,
+	unsigned char *buf)
 {
 	struct diag_pcie_buf_tbl_t *temp = NULL;
 	struct diag_pcie_buf_tbl_t *entry = NULL;
 
-	list_for_each_entry_safe(entry, temp, &pcie_info->buf_tbl, track) {
-		if (entry->buf == buf) {
+	list_for_each_entry_safe(entry, temp, &pcie_info->buf_tbl, track)
+	{
+		if (entry->buf == buf)
+		{
 			DIAG_LOG(DIAG_DEBUG_MUX, "ref_count-- for %pK\n", buf);
 			atomic_dec(&entry->ref_count);
 			return entry;
@@ -160,15 +165,17 @@ void diag_pcie_write_complete_cb(void *req)
 	spin_lock_irqsave(&ch->write_lock, flags);
 	ch->write_cnt++;
 	entry = diag_pcie_buf_tbl_get(ch, ctxt->buf);
-	if (!entry) {
+	if (!entry)
+	{
 		pr_err_ratelimited("diag: In %s, unable to find entry %pK in the table\n",
-				   __func__, ctxt->buf);
+						   __func__, ctxt->buf);
 		spin_unlock_irqrestore(&ch->write_lock, flags);
 		return;
 	}
-	if (atomic_read(&entry->ref_count) != 0) {
+	if (atomic_read(&entry->ref_count) != 0)
+	{
 		DIAG_LOG(DIAG_DEBUG_MUX, "partial write_done ref %d\n",
-			 atomic_read(&entry->ref_count));
+				 atomic_read(&entry->ref_count));
 		diag_ws_on_copy_complete(DIAG_WS_MUX);
 		spin_unlock_irqrestore(&ch->write_lock, flags);
 		diagmem_free(driver, req, ch->mempool);
@@ -177,13 +184,13 @@ void diag_pcie_write_complete_cb(void *req)
 		return;
 	}
 	DIAG_LOG(DIAG_DEBUG_MUX, "full write_done, ctxt: %pK\n",
-		 ctxt->buf);
+			 ctxt->buf);
 	list_del(&entry->track);
 	kfree(entry);
 	entry = NULL;
 	if (ch->ops && ch->ops->write_done)
 		ch->ops->write_done(ureq->buf, ureq->len,
-				ctxt->buf_ctxt, DIAG_PCIE_MODE);
+							ctxt->buf_ctxt, DIAG_PCIE_MODE);
 	spin_unlock_irqrestore(&ch->write_lock, flags);
 	diagmem_free(driver, req, ch->mempool);
 	kfree(ctxt);
@@ -191,13 +198,15 @@ void diag_pcie_write_complete_cb(void *req)
 }
 
 static int diag_pcie_buf_tbl_add(struct diag_pcie_info *pcie_info,
-				unsigned char *buf, uint32_t len, int ctxt)
+								 unsigned char *buf, uint32_t len, int ctxt)
 {
 	struct diag_pcie_buf_tbl_t *temp = NULL;
 	struct diag_pcie_buf_tbl_t *entry = NULL;
 
-	list_for_each_entry_safe(entry, temp, &pcie_info->buf_tbl, track) {
-		if (entry->buf == buf) {
+	list_for_each_entry_safe(entry, temp, &pcie_info->buf_tbl, track)
+	{
+		if (entry->buf == buf)
+		{
 			atomic_inc(&entry->ref_count);
 			return 0;
 		}
@@ -219,7 +228,7 @@ static int diag_pcie_buf_tbl_add(struct diag_pcie_info *pcie_info,
 }
 
 static int diag_pcie_write_ext(struct diag_pcie_info *pcie_info,
-			      unsigned char *buf, int len, int ctxt)
+							   unsigned char *buf, int len, int ctxt)
 {
 	int write_len = 0;
 	int bytes_remaining = len;
@@ -229,25 +238,28 @@ static int diag_pcie_write_ext(struct diag_pcie_info *pcie_info,
 	int bytes_to_write;
 	unsigned long flags;
 
-	if (!pcie_info || !buf || len <= 0) {
+	if (!pcie_info || !buf || len <= 0)
+	{
 		pr_err_ratelimited("diag: In %s, pcie_info: %pK buf: %pK, len: %d\n",
-				   __func__, pcie_info, buf, len);
+						   __func__, pcie_info, buf, len);
 		return -EINVAL;
 	}
 
-	while (bytes_remaining > 0) {
+	while (bytes_remaining > 0)
+	{
 		req = diagmem_alloc(driver, sizeof(struct mhi_req),
-				    pcie_info->mempool);
-		if (!req) {
+							pcie_info->mempool);
+		if (!req)
+		{
 			pr_err_ratelimited("diag: In %s, cannot retrieve pcie write ptrs for pcie channel %s\n",
-					   __func__, pcie_info->name);
+							   __func__, pcie_info->name);
 			return -ENOMEM;
 		}
 
 		write_len = (bytes_remaining >
-				pcie_info->out_chan_attr.max_pkt_size) ?
-				pcie_info->out_chan_attr.max_pkt_size :
-				bytes_remaining;
+					 pcie_info->out_chan_attr.max_pkt_size)
+						? pcie_info->out_chan_attr.max_pkt_size
+						: bytes_remaining;
 		req->client = pcie_info->out_handle;
 		context = kzalloc(sizeof(*context), GFP_KERNEL);
 		if (!context)
@@ -265,15 +277,17 @@ static int diag_pcie_write_ext(struct diag_pcie_info *pcie_info,
 		req->snd_cmpl = 1;
 		if (!pcie_info->out_handle ||
 			!atomic_read(&pcie_info->enabled) ||
-			!atomic_read(&pcie_info->diag_state)) {
+			!atomic_read(&pcie_info->diag_state))
+		{
 			pr_debug_ratelimited("diag: pcie ch %s is not opened\n",
-					     pcie_info->name);
+								 pcie_info->name);
 			kfree(req->context);
 			diagmem_free(driver, req, pcie_info->mempool);
 			return -ENODEV;
 		}
 		spin_lock_irqsave(&pcie_info->write_lock, flags);
-		if (diag_pcie_buf_tbl_add(pcie_info, buf, len, ctxt)) {
+		if (diag_pcie_buf_tbl_add(pcie_info, buf, len, ctxt))
+		{
 			kfree(req->context);
 			diagmem_free(driver, req, pcie_info->mempool);
 			spin_unlock_irqrestore(&pcie_info->write_lock, flags);
@@ -283,13 +297,14 @@ static int diag_pcie_write_ext(struct diag_pcie_info *pcie_info,
 		diag_ws_on_read(DIAG_WS_MUX, len);
 		bytes_to_write = mhi_dev_write_channel(req);
 		diag_ws_on_copy(DIAG_WS_MUX);
-		if (bytes_to_write != write_len) {
+		if (bytes_to_write != write_len)
+		{
 			pr_err_ratelimited("diag: In %s, error writing to pcie channel %s, err: %d, write_len: %d\n",
-					   __func__, pcie_info->name,
-					bytes_to_write, write_len);
+							   __func__, pcie_info->name,
+							   bytes_to_write, write_len);
 			DIAG_LOG(DIAG_DEBUG_MUX,
-				 "ERR! unable to write to pcie, err: %d, write_len: %d\n",
-				bytes_to_write, write_len);
+					 "ERR! unable to write to pcie, err: %d, write_len: %d\n",
+					 bytes_to_write, write_len);
 			diag_ws_on_copy_fail(DIAG_WS_MUX);
 			spin_lock_irqsave(&pcie_info->write_lock, flags);
 			diag_pcie_buf_tbl_remove(pcie_info, buf);
@@ -301,8 +316,8 @@ static int diag_pcie_write_ext(struct diag_pcie_info *pcie_info,
 		offset += write_len;
 		bytes_remaining -= write_len;
 		DIAG_LOG(DIAG_DEBUG_MUX,
-			 "bytes_remaining: %d write_len: %d, len: %d\n",
-			 bytes_remaining, write_len, len);
+				 "bytes_remaining: %d write_len: %d, len: %d\n",
+				 bytes_remaining, write_len, len);
 	}
 	DIAG_LOG(DIAG_DEBUG_MUX, "done writing!");
 
@@ -319,16 +334,18 @@ int diag_pcie_write(int id, unsigned char *buf, int len, int ctxt)
 
 	pcie_info = &diag_pcie[id];
 
-	if (len > pcie_info->out_chan_attr.max_pkt_size) {
+	if (len > pcie_info->out_chan_attr.max_pkt_size)
+	{
 		DIAG_LOG(DIAG_DEBUG_MUX, "len: %d, max_size: %zu\n",
-			 len, pcie_info->out_chan_attr.max_pkt_size);
+				 len, pcie_info->out_chan_attr.max_pkt_size);
 		return diag_pcie_write_ext(pcie_info, buf, len, ctxt);
 	}
 	req = (struct mhi_req *)diagmem_alloc(driver, sizeof(struct mhi_req),
-		    pcie_info->mempool);
-	if (!req) {
+										  pcie_info->mempool);
+	if (!req)
+	{
 		pr_err_ratelimited("diag: In %s, cannot retrieve pcie write ptrs for pcie channel %s\n",
-				 __func__, pcie_info->name);
+						   __func__, pcie_info->name);
 		return -ENOMEM;
 	}
 	req->client = pcie_info->out_handle;
@@ -347,17 +364,19 @@ int diag_pcie_write(int id, unsigned char *buf, int len, int ctxt)
 	req->client_cb = diag_pcie_write_complete_cb;
 	req->snd_cmpl = 1;
 	if (!pcie_info->out_handle || !atomic_read(&pcie_info->enabled) ||
-		!atomic_read(&pcie_info->diag_state)) {
+		!atomic_read(&pcie_info->diag_state))
+	{
 		pr_debug_ratelimited("diag: pcie ch %s is not opened\n",
-					pcie_info->name);
+							 pcie_info->name);
 		kfree(req->context);
 		diagmem_free(driver, req, pcie_info->mempool);
 		return -ENODEV;
 	}
 	spin_lock_irqsave(&pcie_info->write_lock, flags);
-	if (diag_pcie_buf_tbl_add(pcie_info, buf, len, ctxt)) {
+	if (diag_pcie_buf_tbl_add(pcie_info, buf, len, ctxt))
+	{
 		DIAG_LOG(DIAG_DEBUG_MUX,
-			"ERR! unable to add buf %pK to table\n", buf);
+				 "ERR! unable to add buf %pK to table\n", buf);
 		kfree(req->context);
 		diagmem_free(driver, req, pcie_info->mempool);
 		spin_unlock_irqrestore(&pcie_info->write_lock, flags);
@@ -367,13 +386,14 @@ int diag_pcie_write(int id, unsigned char *buf, int len, int ctxt)
 	diag_ws_on_read(DIAG_WS_MUX, len);
 	bytes_to_write = mhi_dev_write_channel(req);
 	diag_ws_on_copy(DIAG_WS_MUX);
-	if (bytes_to_write != len) {
+	if (bytes_to_write != len)
+	{
 		pr_err_ratelimited("diag: In %s, error writing to pcie channel %s, err: %d len: %d\n",
-			__func__, pcie_info->name, bytes_to_write, len);
+						   __func__, pcie_info->name, bytes_to_write, len);
 		diag_ws_on_copy_fail(DIAG_WS_MUX);
 		DIAG_LOG(DIAG_DEBUG_MUX,
-			 "ERR! unable to write to pcie, err: %d len: %d\n",
-			bytes_to_write, len);
+				 "ERR! unable to write to pcie, err: %d len: %d\n",
+				 bytes_to_write, len);
 		spin_lock_irqsave(&pcie_info->write_lock, flags);
 		diag_pcie_buf_tbl_remove(pcie_info, buf);
 		spin_unlock_irqrestore(&pcie_info->write_lock, flags);
@@ -382,19 +402,20 @@ int diag_pcie_write(int id, unsigned char *buf, int len, int ctxt)
 		return -EINVAL;
 	}
 	DIAG_LOG(DIAG_DEBUG_MUX, "wrote packet to pcie chan:%d, len:%d",
-		pcie_info->out_chan, len);
+			 pcie_info->out_chan, len);
 
 	return 0;
 }
 
 static int pcie_init_read_chan(struct diag_pcie_info *ptr,
-		enum mhi_client_channel chan)
+							   enum mhi_client_channel chan)
 {
 	int rc = 0;
 	size_t buf_size;
 	void *data_loc;
 
-	if (ptr == NULL) {
+	if (ptr == NULL)
+	{
 		DIAG_LOG(DIAG_DEBUG_PERIPHERALS, "Bad Input data, quitting\n");
 		return -EINVAL;
 	}
@@ -409,7 +430,6 @@ static int pcie_init_read_chan(struct diag_pcie_info *ptr,
 	ptr->in_chan_attr.read_buffer_size = buf_size;
 
 	return rc;
-
 }
 
 void diag_pcie_client_cb(struct mhi_dev_client_cb_data *cb_data)
@@ -423,22 +443,25 @@ void diag_pcie_client_cb(struct mhi_dev_client_cb_data *cb_data)
 	if (!pcie_info)
 		return;
 
-	switch (cb_data->ctrl_info) {
-	case  MHI_STATE_CONNECTED:
-		if (cb_data->channel == pcie_info->out_chan) {
+	switch (cb_data->ctrl_info)
+	{
+	case MHI_STATE_CONNECTED:
+		if (cb_data->channel == pcie_info->out_chan)
+		{
 			DIAG_LOG(DIAG_DEBUG_MUX,
-				" Received connect event from MHI for %d",
-				pcie_info->out_chan);
+					 " Received connect event from MHI for %d",
+					 pcie_info->out_chan);
 			if (atomic_read(&pcie_info->enabled))
 				return;
 			queue_work(pcie_info->wq, &pcie_info->open_work);
 		}
 		break;
 	case MHI_STATE_DISCONNECTED:
-		if (cb_data->channel == pcie_info->out_chan) {
+		if (cb_data->channel == pcie_info->out_chan)
+		{
 			DIAG_LOG(DIAG_DEBUG_MUX,
-				" Received disconnect event from MHI for %d",
-				pcie_info->out_chan);
+					 " Received disconnect event from MHI for %d",
+					 pcie_info->out_chan);
 			if (!atomic_read(&pcie_info->enabled))
 				return;
 			queue_work(pcie_info->wq, &pcie_info->close_work);
@@ -459,18 +482,19 @@ static int diag_register_pcie_channels(struct diag_pcie_info *pcie_info)
 	pcie_info->event_notifier = diag_pcie_event_notifier;
 
 	DIAG_LOG(DIAG_DEBUG_MUX,
-		"Initializing inbound chan %d.\n",
-		pcie_info->in_chan);
+			 "Initializing inbound chan %d.\n",
+			 pcie_info->in_chan);
 	rc = pcie_init_read_chan(pcie_info, pcie_info->in_chan);
-	if (rc < 0) {
+	if (rc < 0)
+	{
 		DIAG_LOG(DIAG_DEBUG_MUX,
-			"Failed to init inbound 0x%x, ret 0x%x\n",
-			pcie_info->in_chan, rc);
+				 "Failed to init inbound 0x%x, ret 0x%x\n",
+				 pcie_info->in_chan, rc);
 		return rc;
 	}
 	/* Register for state change notifications from mhi*/
 	rc = mhi_register_state_cb(diag_pcie_client_cb, pcie_info,
-						pcie_info->out_chan);
+							   pcie_info->out_chan);
 	if (rc < 0)
 		return rc;
 
@@ -490,12 +514,9 @@ static void diag_pcie_connect(struct diag_pcie_info *ch)
 	queue_work(ch->wq, &(ch->read_work));
 }
 
-void diag_pcie_open_work_fn(struct work_struct *work)
+static void diag_pcie_open_channels(struct diag_pcie_info *pcie_info)
 {
 	int rc = 0;
-	struct diag_pcie_info *pcie_info = container_of(work,
-						      struct diag_pcie_info,
-						      open_work);
 
 	if (!pcie_info || atomic_read(&pcie_info->enabled))
 		return;
@@ -504,25 +525,27 @@ void diag_pcie_open_work_fn(struct work_struct *work)
 	mutex_lock(&pcie_info->in_chan_lock);
 	/* Open write channel*/
 	rc = mhi_dev_open_channel(pcie_info->out_chan,
-			&pcie_info->out_handle,
-			pcie_info->event_notifier);
-	if (rc < 0) {
+							  &pcie_info->out_handle,
+							  pcie_info->event_notifier);
+	if (rc < 0)
+	{
 		DIAG_LOG(DIAG_DEBUG_PERIPHERALS,
-			"Failed to open chan %d, ret %d\n",
-			pcie_info->in_chan, rc);
+				 "Failed to open chan %d, ret %d\n",
+				 pcie_info->in_chan, rc);
 		goto handle_not_rdy_err;
 	}
 	DIAG_LOG(DIAG_DEBUG_MUX, "opened write channel %d",
-		pcie_info->out_chan);
+			 pcie_info->out_chan);
 
 	/* Open read channel*/
 	rc = mhi_dev_open_channel(pcie_info->in_chan,
-			&pcie_info->in_handle,
-			pcie_info->event_notifier);
-	if (rc < 0) {
+							  &pcie_info->in_handle,
+							  pcie_info->event_notifier);
+	if (rc < 0)
+	{
 		DIAG_LOG(DIAG_DEBUG_PERIPHERALS,
-			"Failed to open chan %d, ret 0x%x\n",
-			pcie_info->in_chan, rc);
+				 "Failed to open chan %d, ret 0x%x\n",
+				 pcie_info->in_chan, rc);
 		goto handle_in_err;
 	}
 	DIAG_LOG(DIAG_DEBUG_MUX, "opened read channel %d", pcie_info->in_chan);
@@ -540,6 +563,15 @@ handle_not_rdy_err:
 	mutex_unlock(&pcie_info->out_chan_lock);
 }
 
+void diag_pcie_open_work_fn(struct work_struct *work)
+{
+	struct diag_pcie_info *pcie_info = container_of(work,
+													struct diag_pcie_info,
+													open_work);
+
+	diag_pcie_open_channels(pcie_info);
+}
+
 /*
  * This function performs pcie connect operations wrt Diag synchronously. It
  * doesn't translate to actual pcie connect. This is used when Diag switches
@@ -550,7 +582,8 @@ void diag_pcie_connect_all(void)
 	int i = 0;
 	struct diag_pcie_info *pcie_info = NULL;
 
-	for (i = 0; i < NUM_DIAG_PCIE_DEV; i++) {
+	for (i = 0; i < NUM_DIAG_PCIE_DEV; i++)
+	{
 		if (i != DIAG_PCIE_LOCAL)
 			return;
 		pcie_info = &diag_pcie[i];
@@ -605,7 +638,8 @@ void diag_pcie_disconnect_all(void)
 	int i = 0;
 	struct diag_pcie_info *pcie_info = NULL;
 
-	for (i = 0; i < NUM_DIAG_PCIE_DEV; i++) {
+	for (i = 0; i < NUM_DIAG_PCIE_DEV; i++)
+	{
 
 		if (i != DIAG_PCIE_LOCAL)
 			return;
@@ -644,8 +678,8 @@ void diag_pcie_disconnect_device(int id)
 void diag_pcie_close_work_fn(struct work_struct *work)
 {
 	struct diag_pcie_info *pcie_info = container_of(work,
-						      struct diag_pcie_info,
-						      open_work);
+													struct diag_pcie_info,
+													open_work);
 
 	if (!pcie_info || !atomic_read(&pcie_info->enabled))
 		return;
@@ -653,10 +687,10 @@ void diag_pcie_close_work_fn(struct work_struct *work)
 	mutex_lock(&pcie_info->in_chan_lock);
 	mhi_dev_close_channel(pcie_info->in_handle);
 	DIAG_LOG(DIAG_DEBUG_MUX, " closed in bound channel %d",
-		pcie_info->in_chan);
+			 pcie_info->in_chan);
 	mhi_dev_close_channel(pcie_info->out_handle);
 	DIAG_LOG(DIAG_DEBUG_MUX, " closed out bound channel %d",
-		pcie_info->out_chan);
+			 pcie_info->out_chan);
 	mutex_unlock(&pcie_info->in_chan_lock);
 	mutex_unlock(&pcie_info->out_chan_lock);
 	atomic_set(&pcie_info->enabled, 0);
@@ -669,12 +703,14 @@ int diag_pcie_register(int id, int ctxt, struct diag_mux_ops *ops)
 	int rc = 0;
 	unsigned char wq_name[DIAG_PCIE_NAME_SZ + DIAG_PCIE_STRING_SZ];
 
-	if (id < 0 || id >= NUM_DIAG_PCIE_DEV) {
+	if (id < 0 || id >= NUM_DIAG_PCIE_DEV)
+	{
 		pr_err("diag: Unable to register with PCIE, id: %d\n", id);
 		return -EIO;
 	}
 
-	if (!ops) {
+	if (!ops)
+	{
 		pr_err("diag: Invalid operations for PCIE\n");
 		return -EIO;
 	}
@@ -698,7 +734,13 @@ int diag_pcie_register(int id, int ctxt, struct diag_mux_ops *ops)
 	mutex_init(&ch->in_chan_lock);
 	mutex_init(&ch->out_chan_lock);
 	rc = diag_register_pcie_channels(ch);
-	if (rc < 0) {
+	if (rc == -EEXIST)
+	{
+		diag_pcie_open_channels(ch);
+		pr_err("diag: Handled -EEXIST error\n");
+	}
+	else if (rc < 0 && rc != -EEXIST)
+	{
 		if (ch->wq)
 			destroy_workqueue(ch->wq);
 		kfree(ch->in_chan_attr.read_buffer);
