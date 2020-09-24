@@ -6154,7 +6154,7 @@ static int sde_crtc_atomic_check(struct drm_crtc *crtc,
 		}
 
 		/* verify z_pos setting before using it */
-		if (z_pos >= SDE_STAGE_MAX - SDE_STAGE_0) {
+	   if ((z_pos >= SDE_STAGE_MAX - SDE_STAGE_0) && !cstate->fingerprint_dim_layer) {
 			SDE_ERROR("> %d plane stages assigned\n",
 					SDE_STAGE_MAX - SDE_STAGE_0);
 			rc = -EINVAL;
