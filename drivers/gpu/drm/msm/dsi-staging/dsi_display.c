@@ -7055,6 +7055,22 @@ int dsi_display_get_modes(struct dsi_display *display,
 
 		is_cmd_mode = (display_mode.panel_mode == DSI_OP_CMD_MODE);
 
+		/* Calculate dsi frame transfer time */
+		if (is_cmd_mode) {
+			dsi_panel_calc_dsi_transfer_time(
+				&display->panel->host_config,
+				&display_mode.timing);
+			display_mode.priv_info->dsi_transfer_time_us =
+				display_mode.timing.dsi_transfer_time_us;
+			display_mode.priv_info->min_dsi_clk_hz =
+				display_mode.timing.min_dsi_clk_hz;
+
+			display_mode.priv_info->mdp_transfer_time_us =
+				display_mode.priv_info->dsi_transfer_time_us;
+			display_mode.timing.mdp_transfer_time_us =
+				display_mode.timing.dsi_transfer_time_us;
+		}
+
 		is_split_link = host->split_link.split_link_enabled;
 		sublinks_count = host->split_link.num_sublinks;
 		if (is_split_link && sublinks_count > 1) {
