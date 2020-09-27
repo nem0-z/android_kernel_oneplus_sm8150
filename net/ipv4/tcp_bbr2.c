@@ -179,7 +179,6 @@ struct bbr {
 			probe_rtt_mode_ms:9,	/* max allowed value: 511 */
 			full_bw_cnt:3,		/* max allowed value: 7 */
 			cwnd_tso_budget:1,	/* allowed values: {0, 1} */
-			lt_bw_estimator:1,	/* boolean */
 			unused3:6,
 			drain_to_target:1,	/* boolean */
 			precise_ece_ack:1,	/* boolean */
