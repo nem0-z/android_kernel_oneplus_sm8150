@@ -182,7 +182,7 @@ unsigned int sensor_poll(struct file *file, struct poll_table_struct *table)
 	if (atomic_read(&sensor_data.read_ready))
 		mask |= POLLIN | POLLRDNORM;
 
-	pr_info("%s: exit mask is %#x\n", __func__, mask);
+	pr_debug("%s: exit mask is %#x\n", __func__, mask);
 	return mask;
 }
 
