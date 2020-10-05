@@ -1938,6 +1938,7 @@ unsigned int cpufreq_driver_fast_switch(struct cpufreq_policy *policy,
 {
 	struct qos_request_value *qos;
 	int ret;
+	int cpu;
 
 	target_freq = clamp_val(target_freq, policy->min, policy->max);
 	if (policy->cpu >= GOLD_PLUS_CPU_NUMBER)
@@ -1953,6 +1954,13 @@ unsigned int cpufreq_driver_fast_switch(struct cpufreq_policy *policy,
 	if (ret) {
 		cpufreq_times_record_transition(policy, ret);
 		cpufreq_stats_record_transition(policy, ret);
+	}
+
+	policy->cur = ret;
+
+	if (trace_cpu_frequency_enabled()) {
+		for_each_cpu(cpu, policy->cpus)
+			trace_cpu_frequency(ret, cpu);
 	}
 
 	return ret;
