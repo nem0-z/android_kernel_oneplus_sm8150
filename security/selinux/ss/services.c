@@ -94,12 +94,6 @@ static int context_struct_to_string(struct policydb *policydb,
 				    char **scontext,
 				    u32 *scontext_len);
 
-static int sidtab_entry_to_string(struct policydb *policydb,
-				  struct sidtab *sidtab,
-				  struct sidtab_entry *entry,
-				  char **scontext,
-				  u32 *scontext_len);
-
 static void context_struct_compute_av(struct policydb *policydb,
 				      struct context *scontext,
 				      struct context *tcontext,
@@ -731,22 +725,21 @@ static void context_struct_compute_av(struct policydb *policydb,
 }
 
 static inline int security_validtrans_handle_fail(struct selinux_state *state,
-					   struct sidtab_entry *oentry,
-					   struct sidtab_entry *nentry,
-					   struct sidtab_entry *tentry,
+					   struct context *ocontext,
+					   struct context *ncontext,
+					   struct context *tcontext,
 					   u16 tclass)
 {
 #ifdef CONFIG_AUDIT
 	struct policydb *p = &state->ss->policydb;
-	struct sidtab *sidtab = state->ss->sidtab;
 	char *o = NULL, *n = NULL, *t = NULL;
 	u32 olen, nlen, tlen;
 
-	if (sidtab_entry_to_string(p, sidtab, oentry, &o, &olen))
+	if (context_struct_to_string(p, ocontext, &o, &olen))
 		goto out;
-	if (sidtab_entry_to_string(p, sidtab, nentry, &n, &nlen))
+	if (context_struct_to_string(p, ncontext, &n, &nlen))
 		goto out;
-	if (sidtab_entry_to_string(p, sidtab, tentry, &t, &tlen))
+	if (context_struct_to_string(p, tcontext, &t, &tlen))
 		goto out;
 	audit_log(current->audit_context, GFP_ATOMIC, AUDIT_SELINUX_ERR,
 		  "op=security_validate_transition seresult=denied"
@@ -769,9 +762,9 @@ static int security_compute_validatetrans(struct selinux_state *state,
 {
 	struct policydb *policydb;
 	struct sidtab *sidtab;
-	struct sidtab_entry *oentry;
-	struct sidtab_entry *nentry;
-	struct sidtab_entry *tentry;
+	struct context *ocontext;
+	struct context *ncontext;
+	struct context *tcontext;
 	struct class_datum *tclass_datum;
 	struct constraint_node *constraint;
 	u16 tclass;
@@ -797,24 +790,24 @@ static int security_compute_validatetrans(struct selinux_state *state,
 	}
 	tclass_datum = policydb->class_val_to_struct[tclass - 1];
 
-	oentry = sidtab_search_entry(sidtab, oldsid);
-	if (!oentry) {
+	ocontext = sidtab_search(sidtab, oldsid);
+	if (!ocontext) {
 		pr_err("SELinux: %s:  unrecognized SID %d\n",
 			__func__, oldsid);
 		rc = -EINVAL;
 		goto out;
 	}
 
-	nentry = sidtab_search_entry(sidtab, newsid);
-	if (!nentry) {
+	ncontext = sidtab_search(sidtab, newsid);
+	if (!ncontext) {
 		pr_err("SELinux: %s:  unrecognized SID %d\n",
 			__func__, newsid);
 		rc = -EINVAL;
 		goto out;
 	}
 
-	tentry = sidtab_search_entry(sidtab, tasksid);
-	if (!tentry) {
+	tcontext = sidtab_search(sidtab, tasksid);
+	if (!tcontext) {
 		pr_err("SELinux: %s:  unrecognized SID %d\n",
 			__func__, tasksid);
 		rc = -EINVAL;
@@ -823,16 +816,15 @@ static int security_compute_validatetrans(struct selinux_state *state,
 
 	constraint = tclass_datum->validatetrans;
 	while (constraint) {
-		if (!constraint_expr_eval(policydb, &oentry->context,
-					  &nentry->context, &tentry->context,
-					  constraint->expr)) {
+		if (!constraint_expr_eval(policydb, ocontext, ncontext,
+					  tcontext, constraint->expr)) {
 			if (user)
 				rc = -EPERM;
 			else
 				rc = security_validtrans_handle_fail(state,
-								     oentry,
-								     nentry,
-								     tentry,
+								     ocontext,
+								     ncontext,
+								     tcontext,
 								     tclass);
 			goto out;
 		}
@@ -874,7 +866,7 @@ int security_bounded_transition(struct selinux_state *state,
 {
 	struct policydb *policydb;
 	struct sidtab *sidtab;
-	struct sidtab_entry *old_entry, *new_entry;
+	struct context *old_context, *new_context;
 	struct type_datum *type;
 	int index;
 	int rc;
@@ -888,16 +880,16 @@ int security_bounded_transition(struct selinux_state *state,
 	sidtab = state->ss->sidtab;
 
 	rc = -EINVAL;
-	old_entry = sidtab_search_entry(sidtab, old_sid);
-	if (!old_entry) {
+	old_context = sidtab_search(sidtab, old_sid);
+	if (!old_context) {
 		pr_err("SELinux: %s: unrecognized SID %u\n",
 		       __func__, old_sid);
 		goto out;
 	}
 
 	rc = -EINVAL;
-	new_entry = sidtab_search_entry(sidtab, new_sid);
-	if (!new_entry) {
+	new_context = sidtab_search(sidtab, new_sid);
+	if (!new_context) {
 		pr_err("SELinux: %s: unrecognized SID %u\n",
 		       __func__, new_sid);
 		goto out;
@@ -905,10 +897,10 @@ int security_bounded_transition(struct selinux_state *state,
 
 	rc = 0;
 	/* type/domain unchanged */
-	if (old_entry->context.type == new_entry->context.type)
+	if (old_context->type == new_context->type)
 		goto out;
 
-	index = new_entry->context.type;
+	index = new_context->type;
 	while (true) {
 		type = policydb->type_val_to_struct_array[index - 1];
 		BUG_ON(!type);
@@ -920,7 +912,7 @@ int security_bounded_transition(struct selinux_state *state,
 
 		/* @newsid is bounded by @oldsid */
 		rc = 0;
-		if (type->bounds == old_entry->context.type)
+		if (type->bounds == old_context->type)
 			break;
 
 		index = type->bounds;
@@ -932,10 +924,10 @@ int security_bounded_transition(struct selinux_state *state,
 		char *new_name = NULL;
 		u32 length;
 
-		if (!sidtab_entry_to_string(policydb, sidtab, old_entry,
-					    &old_name, &length) &&
-		    !sidtab_entry_to_string(policydb, sidtab, new_entry,
-					    &new_name, &length)) {
+		if (!context_struct_to_string(policydb, old_context,
+					      &old_name, &length) &&
+		    !context_struct_to_string(policydb, new_context,
+					      &new_name, &length)) {
 			audit_log(current->audit_context,
 				  GFP_ATOMIC, AUDIT_SELINUX_ERR,
 				  "op=security_bounded_transition "
@@ -1278,23 +1270,6 @@ static int context_struct_to_string(struct policydb *p,
 	return 0;
 }
 
-static int sidtab_entry_to_string(struct policydb *p,
-				  struct sidtab *sidtab,
-				  struct sidtab_entry *entry,
-				  char **scontext, u32 *scontext_len)
-{
-	int rc = sidtab_sid2str_get(sidtab, entry, scontext, scontext_len);
-
-	if (rc != -ENOENT)
-		return rc;
-
-	rc = context_struct_to_string(p, &entry->context, scontext,
-				      scontext_len);
-	if (!rc && scontext)
-		sidtab_sid2str_put(sidtab, entry, *scontext, *scontext_len);
-	return rc;
-}
-
 #include "initial_sid_to_string.h"
 
 int security_sidtab_hash_stats(struct selinux_state *state, char *page)
@@ -1321,7 +1296,7 @@ static int security_sid_to_context_core(struct selinux_state *state,
 {
 	struct policydb *policydb;
 	struct sidtab *sidtab;
-	struct sidtab_entry *entry;
+	struct context *context;
 	int rc = 0;
 
 	if (scontext)
@@ -1352,20 +1327,21 @@ static int security_sid_to_context_core(struct selinux_state *state,
 	read_lock(&state->ss->policy_rwlock);
 	policydb = &state->ss->policydb;
 	sidtab = state->ss->sidtab;
-
 	if (force)
-		entry = sidtab_search_entry_force(sidtab, sid);
+		context = sidtab_search_force(sidtab, sid);
 	else
-		entry = sidtab_search_entry(sidtab, sid);
-	if (!entry) {
+		context = sidtab_search(sidtab, sid);
+	if (!context) {
 		pr_err("SELinux: %s:  unrecognized SID %d\n",
 			__func__, sid);
 		rc = -EINVAL;
 		goto out_unlock;
 	}
-	rc = sidtab_entry_to_string(policydb, sidtab, entry, scontext,
-				    scontext_len);
-
+	if (only_invalid && !context->len)
+		rc = 0;
+	else
+		rc = context_struct_to_string(policydb, context, scontext,
+					      scontext_len);
 out_unlock:
 	read_unlock(&state->ss->policy_rwlock);
 out:
@@ -1639,20 +1615,19 @@ int security_context_to_sid_force(struct selinux_state *state,
 
 static inline int compute_sid_handle_invalid_context(
 	struct selinux_state *state,
-	struct sidtab_entry *sentry,
-	struct sidtab_entry *tentry,
+	struct context *scontext,
+	struct context *tcontext,
 	u16 tclass,
 	struct context *newcontext)
 {
 #ifdef CONFIG_AUDIT
 	struct policydb *policydb = &state->ss->policydb;
-	struct sidtab *sidtab = state->ss->sidtab;
 	char *s = NULL, *t = NULL, *n = NULL;
 	u32 slen, tlen, nlen;
 
-	if (sidtab_entry_to_string(policydb, sidtab, sentry, &s, &slen))
+	if (context_struct_to_string(policydb, scontext, &s, &slen))
 		goto out;
-	if (sidtab_entry_to_string(policydb, sidtab, tentry, &t, &tlen))
+	if (context_struct_to_string(policydb, tcontext, &t, &tlen))
 		goto out;
 	if (context_struct_to_string(policydb, newcontext, &n, &nlen))
 		goto out;
@@ -1711,8 +1686,7 @@ static int security_compute_sid(struct selinux_state *state,
 	struct policydb *policydb;
 	struct sidtab *sidtab;
 	struct class_datum *cladatum = NULL;
-	struct context *scontext, *tcontext, newcontext;
-	struct sidtab_entry *sentry, *tentry;
+	struct context *scontext = NULL, *tcontext = NULL, newcontext;
 	struct role_trans *roletr = NULL;
 	struct avtab_key avkey;
 	struct avtab_datum *avdatum;
@@ -1749,23 +1723,20 @@ static int security_compute_sid(struct selinux_state *state,
 	policydb = &state->ss->policydb;
 	sidtab = state->ss->sidtab;
 
-	sentry = sidtab_search_entry(sidtab, ssid);
-	if (!sentry) {
+	scontext = sidtab_search(sidtab, ssid);
+	if (!scontext) {
 		pr_err("SELinux: %s:  unrecognized SID %d\n",
 		       __func__, ssid);
 		rc = -EINVAL;
 		goto out_unlock;
 	}
-	tentry = sidtab_search_entry(sidtab, tsid);
-	if (!tentry) {
+	tcontext = sidtab_search(sidtab, tsid);
+	if (!tcontext) {
 		pr_err("SELinux: %s:  unrecognized SID %d\n",
 		       __func__, tsid);
 		rc = -EINVAL;
 		goto out_unlock;
 	}
-
-	scontext = &sentry->context;
-	tcontext = &tentry->context;
 
 	if (tclass && tclass <= policydb->p_classes.nprim)
 		cladatum = policydb->class_val_to_struct[tclass - 1];
@@ -1867,8 +1838,10 @@ static int security_compute_sid(struct selinux_state *state,
 
 	/* Check the validity of the context. */
 	if (!policydb_context_isvalid(policydb, &newcontext)) {
-		rc = compute_sid_handle_invalid_context(state, sentry, tentry,
-							tclass, &newcontext);
+		rc = compute_sid_handle_invalid_context(state, scontext,
+							tcontext,
+							tclass,
+							&newcontext);
 		if (rc)
 			goto out_unlock;
 	}
