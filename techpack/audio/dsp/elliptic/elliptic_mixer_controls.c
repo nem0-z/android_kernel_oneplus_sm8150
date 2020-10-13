@@ -372,7 +372,7 @@ int elliptic_ultrasound_tx_port_set(struct snd_kcontrol *kcontrol,
 	else
 		ret = elliptic_close_port(ULTRASOUND_TX_PORT_ID);
 
-	EL_PRINT_E("ultrasound_tx_port: enable=%d ret=%d",
+	EL_PRINT_D("ultrasound_tx_port: enable=%d ret=%d",
 		ultrasound_tx_port_cache, ret);
 
 	return ret;
