@@ -128,3 +128,5 @@ kernel/configs/android-*.cfg
 /out
 *.log
 *.txt
+*.py
+*.sh
