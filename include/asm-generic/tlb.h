@@ -253,10 +253,15 @@ struct mmu_gather {
 	unsigned long		end;
 	/* we are in the middle of an operation to clear
 	 * a full mm and can make some optimizations */
-	unsigned int		fullmm : 1,
+	unsigned int		fullmm : 1;
 	/* we have performed an operation which
 	 * requires a complete flush of the tlb */
-				need_flush_all : 1;
+	unsigned int    need_flush_all : 1;
+
+  /*
+	 * we have removed page directories
+	 */
+	unsigned int		freed_tables : 1;
 
 	/*
 	 * at which levels have we cleared entries?
