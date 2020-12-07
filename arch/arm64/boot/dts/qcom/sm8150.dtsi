@@ -73,7 +73,7 @@
 			compatible = "arm,armv8";
 			reg = <0x0 0x0>;
 			enable-method = "psci";
-			capacity-dmips-mhz = <1024>;
+			capacity-dmips-mhz = <488>;
 			cache-size = <0x8000>;
 			next-level-cache = <&L2_0>;
 			freq-energy-model;
@@ -113,7 +113,7 @@
 			compatible = "arm,armv8";
 			reg = <0x0 0x100>;
 			enable-method = "psci";
-			capacity-dmips-mhz = <1024>;
+			capacity-dmips-mhz = <488>;
 			cache-size = <0x8000>;
 			next-level-cache = <&L2_1>;
 			freq-energy-model;
@@ -147,7 +147,7 @@
 			compatible = "arm,armv8";
 			reg = <0x0 0x200>;
 			enable-method = "psci";
-			capacity-dmips-mhz = <1024>;
+			capacity-dmips-mhz = <488>;
 			cache-size = <0x8000>;
 			next-level-cache = <&L2_2>;
 			freq-energy-model;
@@ -181,7 +181,7 @@
 			compatible = "arm,armv8";
 			reg = <0x0 0x300>;
 			enable-method = "psci";
-			capacity-dmips-mhz = <1024>;
+			capacity-dmips-mhz = <488>;
 			cache-size = <0x8000>;
 			next-level-cache = <&L2_3>;
 			freq-energy-model;
