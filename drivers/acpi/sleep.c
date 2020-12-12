@@ -934,6 +934,8 @@ static int lps0_device_attach(struct acpi_device *adev,
 
 		acpi_handle_debug(adev->handle, "_DSM function mask: 0x%x\n",
 				  bitmask);
+
+		acpi_ec_mark_gpe_for_wake();
 	} else {
 		acpi_handle_debug(adev->handle,
 				  "_DSM function 0 evaluation failed\n");
@@ -962,18 +964,17 @@ static int acpi_s2idle_prepare(void)
 	if (lps0_device_handle) {
 		acpi_sleep_run_lps0_dsm(ACPI_LPS0_SCREEN_OFF);
 		acpi_sleep_run_lps0_dsm(ACPI_LPS0_ENTRY);
-	} else {
-		/*
-		 * The configuration of GPEs is changed here to avoid spurious
-		 * wakeups, but that should not be necessary if this is a
-		 * "low-power S0" platform and the low-power S0 _DSM is present.
-		 */
-		acpi_enable_all_wakeup_gpes();
-		acpi_os_wait_events_complete();
+
+		acpi_ec_set_gpe_wake_mask(ACPI_GPE_ENABLE);
 	}
 	if (acpi_sci_irq_valid())
 		enable_irq_wake(acpi_sci_irq);
 
+	/* Change the configuration of GPEs to avoid spurious wakeup. */
+	acpi_enable_all_wakeup_gpes();
+	acpi_os_wait_events_complete();
+
+	s2idle_wakeup = true;
 	return 0;
 }
 
@@ -984,36 +985,51 @@ static void acpi_s2idle_wake(void)
 		lpi_check_constraints();
 
 	/*
-	 * If IRQD_WAKEUP_ARMED is not set for the SCI at this point, it means
-	 * that the SCI has triggered while suspended, so cancel the wakeup in
-	 * case it has not been a wakeup event (the GPEs will be checked later).
+	 * If IRQD_WAKEUP_ARMED is set for the SCI at this point, the SCI has
+	 * not triggered while suspended, so bail out.
 	 */
-	if (acpi_sci_irq_valid() &&
-	    !irqd_is_wakeup_armed(irq_get_irq_data(acpi_sci_irq))) {
-		pm_system_cancel_wakeup();
-		s2idle_wakeup = true;
-	}
-}
+	if (!acpi_sci_irq_valid() ||
+	    irqd_is_wakeup_armed(irq_get_irq_data(acpi_sci_irq)))
+		return;
 
-static void acpi_s2idle_sync(void)
-{
 	/*
-	 * Process all pending events in case there are any wakeup ones.
-	 *
-	 * The EC driver uses the system workqueue and an additional special
-	 * one, so those need to be flushed too.
+	 * If there are EC events to process, the wakeup may be a spurious one
+	 * coming from the EC.
 	 */
-	acpi_ec_flush_work();
-	acpi_os_wait_events_complete();
-	s2idle_wakeup = false;
+	if (acpi_ec_dispatch_gpe()) {
+		/*
+		 * Cancel the wakeup and process all pending events in case
+		 * there are any wakeup ones in there.
+		 *
+		 * Note that if any non-EC GPEs are active at this point, the
+		 * SCI will retrigger after the rearming below, so no events
+		 * should be missed by canceling the wakeup here.
+		 */
+		pm_system_cancel_wakeup();
+		/*
+		 * The EC driver uses the system workqueue and an additional
+		 * special one, so those need to be flushed too.
+		 */
+		acpi_os_wait_events_complete(); /* synchronize EC GPE processing */
+		acpi_ec_flush_work();
+		acpi_os_wait_events_complete(); /* synchronize Notify handling */
+	}
+
+	rearm_wake_irq(acpi_sci_irq);
 }
 
 static void acpi_s2idle_restore(void)
 {
+	s2idle_wakeup = false;
+
+	acpi_enable_all_runtime_gpes();
+
 	if (acpi_sci_irq_valid())
 		disable_irq_wake(acpi_sci_irq);
 
 	if (lps0_device_handle) {
+		acpi_ec_set_gpe_wake_mask(ACPI_GPE_DISABLE);
+
 		acpi_sleep_run_lps0_dsm(ACPI_LPS0_EXIT);
 		acpi_sleep_run_lps0_dsm(ACPI_LPS0_SCREEN_ON);
 	} else {
@@ -1031,7 +1047,6 @@ static const struct platform_s2idle_ops acpi_s2idle_ops = {
 	.begin = acpi_s2idle_begin,
 	.prepare = acpi_s2idle_prepare,
 	.wake = acpi_s2idle_wake,
-	.sync = acpi_s2idle_sync,
 	.restore = acpi_s2idle_restore,
 	.end = acpi_s2idle_end,
 };
