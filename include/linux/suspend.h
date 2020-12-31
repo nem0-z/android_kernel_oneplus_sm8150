@@ -191,6 +191,7 @@ struct platform_s2idle_ops {
 	int (*begin)(void);
 	int (*prepare)(void);
 	void (*wake)(void);
+	void (*sync)(void);
 	void (*restore)(void);
 	void (*end)(void);
 };

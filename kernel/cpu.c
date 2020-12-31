@@ -776,6 +776,10 @@ void __init cpuhp_threads_init(void)
 }
 
 #ifdef CONFIG_HOTPLUG_CPU
+#ifndef arch_clear_mm_cpumask_cpu
+#define arch_clear_mm_cpumask_cpu(cpu, mm) cpumask_clear_cpu(cpu, mm_cpumask(mm))
+#endif
+
 /**
  * clear_tasks_mm_cpumask - Safely clear tasks' mm_cpumask for a CPU
  * @cpu: a CPU id
@@ -811,7 +815,7 @@ void clear_tasks_mm_cpumask(int cpu)
 		t = find_lock_task_mm(p);
 		if (!t)
 			continue;
-		cpumask_clear_cpu(cpu, mm_cpumask(t->mm));
+		arch_clear_mm_cpumask_cpu(cpu, t->mm);
 		task_unlock(t);
 	}
 	rcu_read_unlock();
@@ -2372,12 +2376,12 @@ const struct cpumask *const cpu_perf_mask = cpu_possible_mask;
 EXPORT_SYMBOL(cpu_perf_mask);
 
 #if CONFIG_PRIME_CPU_MASK
-static const unsigned long perfp_cpu_bits = CONFIG_PRIME_CPU_MASK;
-const struct cpumask *const cpu_perfp_mask = to_cpumask(&perfp_cpu_bits);
+static const unsigned long prime_cpu_bits = CONFIG_PRIME_CPU_MASK;
+const struct cpumask *const cpu_prime_mask = to_cpumask(&prime_cpu_bits);
 #else
-const struct cpumask *const cpu_perfp_mask = cpu_possible_mask;
+const struct cpumask *const cpu_prime_mask = cpu_possible_mask;
 #endif
-EXPORT_SYMBOL(cpu_perfp_mask);
+EXPORT_SYMBOL(cpu_prime_mask);
 
 void init_cpu_present(const struct cpumask *src)
 {
