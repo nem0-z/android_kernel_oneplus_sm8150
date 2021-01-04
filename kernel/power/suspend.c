@@ -27,20 +27,11 @@
 #include <linux/export.h>
 #include <linux/suspend.h>
 #include <linux/syscore_ops.h>
-#include <linux/swait.h>
 #include <linux/ftrace.h>
-#include <linux/rtc.h>
 #include <trace/events/power.h>
 #include <linux/compiler.h>
 #include <linux/moduleparam.h>
 #include <linux/wakeup_reason.h>
-#ifdef CONFIG_PM_SLEEP_MONITOR
-#include <linux/sched/debug.h>
-#include <linux/kthread.h>
-#include <linux/sched.h>
-#include <uapi/linux/sched/types.h>
-#endif
-
 #include "power.h"
 #include <soc/qcom/boot_stats.h>
 
@@ -64,7 +55,7 @@ static const char * const mem_sleep_labels[] = {
 const char *mem_sleep_states[PM_SUSPEND_MAX];
 
 suspend_state_t mem_sleep_current = PM_SUSPEND_TO_IDLE;
-suspend_state_t mem_sleep_default = PM_SUSPEND_TO_IDLE;
+suspend_state_t mem_sleep_default = PM_SUSPEND_MAX;
 suspend_state_t pm_suspend_target_state;
 EXPORT_SYMBOL_GPL(pm_suspend_target_state);
 
@@ -73,139 +64,11 @@ EXPORT_SYMBOL_GPL(pm_suspend_global_flags);
 
 static const struct platform_suspend_ops *suspend_ops;
 static const struct platform_s2idle_ops *s2idle_ops;
-static DECLARE_SWAIT_QUEUE_HEAD(s2idle_wait_head);
+static DECLARE_WAIT_QUEUE_HEAD(s2idle_wait_head);
 
 enum s2idle_states __read_mostly s2idle_state;
 static DEFINE_RAW_SPINLOCK(s2idle_lock);
 extern int check_touchirq_triggerd(void);
-
-#ifdef CONFIG_PM_SLEEP_MONITOR
-/* Suspend monitor thread toggle reason */
-enum toggle_reason {
-	TOGGLE_NONE,
-	TOGGLE_START,
-	TOGGLE_STOP,
-};
-
-#define SUSPEND_TIMER_TIMEOUT_MS 30000
-static struct task_struct *ksuspend_mon_tsk;
-static DECLARE_WAIT_QUEUE_HEAD(power_suspend_waitqueue);
-static enum toggle_reason suspend_mon_toggle;
-static DEFINE_MUTEX(suspend_mon_lock);
-
-static void start_suspend_mon(void)
-{
-	mutex_lock(&suspend_mon_lock);
-	suspend_mon_toggle = TOGGLE_START;
-	mutex_unlock(&suspend_mon_lock);
-	wake_up(&power_suspend_waitqueue);
-}
-
-static void stop_suspend_mon(void)
-{
-	mutex_lock(&suspend_mon_lock);
-	suspend_mon_toggle = TOGGLE_STOP;
-	mutex_unlock(&suspend_mon_lock);
-	wake_up(&power_suspend_waitqueue);
-}
-
-static void suspend_timeout(int timeout_count)
-{
-	char *null_pointer = NULL;
-
-	pr_info("Suspend monitor timeout (timer is %d seconds)\n",
-		(SUSPEND_TIMER_TIMEOUT_MS/1000));
-
-	show_state_filter(TASK_UNINTERRUPTIBLE);
-
-	if (timeout_count < 2)
-		return;
-
-	if (is_console_suspended())
-		resume_console();
-
-	pr_info("Trigger a panic\n");
-
-	/* Trigger a NULL pointer dereference */
-	*null_pointer = 'a';
-
-	/* Should not reach here */
-	pr_err("Trigger panic failed!\n");
-}
-
-static int suspend_monitor_kthread(void *arg)
-{
-	long err;
-	struct sched_param param = {.sched_priority
-		= MAX_RT_PRIO-1};
-	static int timeout_count;
-	static long timeout;
-
-	pr_info("Init ksuspend_mon thread\n");
-
-	sched_setscheduler(current, SCHED_FIFO, &param);
-
-	timeout_count = 0;
-	timeout = MAX_SCHEDULE_TIMEOUT;
-
-	do {
-		/* Wait suspend timer timeout */
-		err = wait_event_interruptible_timeout(
-			power_suspend_waitqueue,
-			(suspend_mon_toggle != TOGGLE_NONE),
-			timeout);
-
-		mutex_lock(&suspend_mon_lock);
-		/* suspend monitor state change */
-		if (suspend_mon_toggle != TOGGLE_NONE) {
-			if (suspend_mon_toggle == TOGGLE_START) {
-				timeout = msecs_to_jiffies(
-					SUSPEND_TIMER_TIMEOUT_MS);
-				pr_info("Start suspend monitor\n");
-			} else if (suspend_mon_toggle == TOGGLE_STOP) {
-				timeout = MAX_SCHEDULE_TIMEOUT;
-				timeout_count = 0;
-				pr_info("Stop suspend monitor\n");
-			}
-			suspend_mon_toggle = TOGGLE_NONE;
-			mutex_unlock(&suspend_mon_lock);
-			continue;
-		}
-		mutex_unlock(&suspend_mon_lock);
-
-		/* suspend monitor event handler */
-		if (err == 0) {
-			timeout_count++;
-			suspend_timeout(timeout_count);
-		} else if (err == -ERESTARTSYS) {
-			pr_info("Exit ksuspend_mon!");
-			break;
-		}
-	} while (1);
-
-	return 0;
-}
-
-static void init_suspend_monitor_thread(void)
-{
-	int ret;
-
-	ksuspend_mon_tsk = kthread_create(suspend_monitor_kthread,
-		NULL, "ksuspend_mon");
-	if (IS_ERR(ksuspend_mon_tsk)) {
-		ret = PTR_ERR(ksuspend_mon_tsk);
-		ksuspend_mon_tsk = NULL;
-		pr_err("Create suspend_monitor_kthread failed!"
-			" ret = %d\n", ret);
-		return;
-	}
-
-	suspend_mon_toggle = TOGGLE_NONE;
-	wake_up_process(ksuspend_mon_tsk);
-
-	return;
-}
-#endif
 
 void s2idle_set_ops(const struct platform_s2idle_ops *ops)
 {
@@ -223,10 +86,6 @@ static void s2idle_enter(void)
 {
 	trace_suspend_resume(TPS("machine_suspend"), PM_SUSPEND_TO_IDLE, true);
 
-#ifdef CONFIG_PM_SLEEP_MONITOR
-	stop_suspend_mon();
-#endif
-
 	raw_spin_lock_irq(&s2idle_lock);
 	if (pm_wakeup_pending())
 		goto out;
@@ -240,8 +99,8 @@ static void s2idle_enter(void)
 	/* Push all the CPUs into the idle loop. */
 	wake_up_all_idle_cpus();
 	/* Make the current CPU wait so it can enter the idle loop too. */
-	swait_event(s2idle_wait_head,
-		    s2idle_state == S2IDLE_STATE_WAKE);
+	wait_event(s2idle_wait_head,
+		   s2idle_state == S2IDLE_STATE_WAKE);
 
 	cpuidle_pause();
 	put_online_cpus();
@@ -252,10 +111,6 @@ static void s2idle_enter(void)
 	s2idle_state = S2IDLE_STATE_NONE;
 	raw_spin_unlock_irq(&s2idle_lock);
 
-#ifdef CONFIG_PM_SLEEP_MONITOR
-	start_suspend_mon();
-#endif
-
 	trace_suspend_resume(TPS("machine_suspend"), PM_SUSPEND_TO_IDLE, false);
 }
 
@@ -265,7 +120,6 @@ static void s2idle_loop(void)
 
 	for (;;) {
 		int error;
-		bool leave_s2idle = false;
 
 		dpm_noirq_begin();
 
@@ -279,27 +133,10 @@ static void s2idle_loop(void)
 		 * so prevent them from terminating the loop right away.
 		 */
 		error = dpm_noirq_suspend_devices(PMSG_SUSPEND);
-		if (!error) {
+		if (!error)
 			s2idle_enter();
-			/*
-			 * Once we enter s2idle_enter(), returning means that
-			 * either:
-			 * 1) an abort was detected prior to suspending, or
-			 * 2) something caused us to wake from suspended
-			 * If we got an abort or a wakeup interrupt, we need
-			 * to break out of this loop.  If we were woken by
-			 * an interrupt that technically doesn't require a
-			 * full wakeup (only a few corner cases), we're going
-			 * to wake up anyway, because the way this new
-			 * s2idle_loop() flow works, the resume of devices
-			 * below will cause an abort even if we could
-			 * otherwise have looped back into suspend.
-			 */
-			leave_s2idle = true;
-		} else if (error == -EBUSY && pm_wakeup_pending()) {
-			leave_s2idle = true;
+		else if (error == -EBUSY && pm_wakeup_pending())
 			error = 0;
-		}
 
 		if (!error && s2idle_ops && s2idle_ops->wake)
 			s2idle_ops->wake();
@@ -314,17 +151,10 @@ static void s2idle_loop(void)
 		if (s2idle_ops && s2idle_ops->sync)
 			s2idle_ops->sync();
 
-		if (leave_s2idle || pm_wakeup_pending())
+		if (pm_wakeup_pending())
 			break;
 
-		/*
-		 * Since we are going to loop around and attempt to go back
-		 * into suspend, ensure that all wakeup reason logging from
-		 * this partial resume gets cleared first (which will also
-		 * reenable wakeup reason logging).
-		 */
 		pm_wakeup_clear(false);
-		clear_wakeup_reasons();
 	}
 
 	pm_pr_dbg("resume from suspend-to-idle\n");
@@ -337,7 +167,7 @@ void s2idle_wake(void)
 	raw_spin_lock_irqsave(&s2idle_lock, flags);
 	if (s2idle_state > S2IDLE_STATE_NONE) {
 		s2idle_state = S2IDLE_STATE_WAKE;
-		swake_up(&s2idle_wait_head);
+		wake_up(&s2idle_wait_head);
 	}
 	raw_spin_unlock_irqrestore(&s2idle_lock, flags);
 }
@@ -363,9 +193,6 @@ void __init pm_states_init(void)
 	 * initialize mem_sleep_states[] accordingly here.
 	 */
 	mem_sleep_states[PM_SUSPEND_TO_IDLE] = mem_sleep_labels[PM_SUSPEND_TO_IDLE];
-#ifdef CONFIG_PM_SLEEP_MONITOR
-	init_suspend_monitor_thread();
-#endif
 }
 
 static int __init mem_sleep_default_setup(char *str)
@@ -623,17 +450,11 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
 
 	arch_suspend_disable_irqs();
 	BUG_ON(!irqs_disabled());
-
-#ifdef CONFIG_PM_SLEEP_MONITOR
-	stop_suspend_mon();
-#endif
-
 	if (check_touchirq_triggerd()) {
 		pr_err("[TP]touchpanel irq status is low\n");
 		error = -EBUSY;
 		goto Enable_irq;
 	}
-
 	error = syscore_suspend();
 	if (!error) {
 		*wakeup = pm_wakeup_pending();
@@ -649,16 +470,9 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
 			log_suspend_abort_reason(suspend_abort);
 			error = -EBUSY;
 		}
-
-		start_logging_wakeup_reasons();
 		syscore_resume();
 	}
 Enable_irq:
-
-#ifdef CONFIG_PM_SLEEP_MONITOR
-	start_suspend_mon();
-#endif
-
 	arch_suspend_enable_irqs();
 	BUG_ON(irqs_disabled());
 
@@ -809,18 +623,6 @@ static int enter_state(suspend_state_t state)
 	return error;
 }
 
-static void pm_suspend_marker(char *annotation)
-{
-	struct timespec ts;
-	struct rtc_time tm;
-
-	getnstimeofday(&ts);
-	rtc_time_to_tm(ts.tv_sec, &tm);
-	pr_debug("PM: suspend %s %d-%02d-%02d %02d:%02d:%02d.%09lu UTC\n",
-		annotation, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
-		tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec);
-}
-
 /**
  * pm_suspend - Externally visible function for suspending the system.
  * @state: System sleep state to enter.
@@ -837,13 +639,7 @@ int pm_suspend(suspend_state_t state)
 
 	qcom_smem_state_update_bits(qstate, AWAKE_BIT, 0);
 
-	pm_suspend_marker("entry");
 	pr_debug("suspend entry (%s)\n", mem_sleep_labels[state]);
-
-#ifdef CONFIG_PM_SLEEP_MONITOR
-	start_suspend_mon();
-#endif	
-
 	error = enter_state(state);
 
 	qcom_smem_state_update_bits(qstate, AWAKE_BIT, AWAKE_BIT);
@@ -854,12 +650,6 @@ int pm_suspend(suspend_state_t state)
 	} else {
 		suspend_stats.success++;
 	}
-
-#ifdef CONFIG_PM_SLEEP_MONITOR
-	stop_suspend_mon();
-#endif
-
-	pm_suspend_marker("exit");
 	pr_debug("suspend exit\n");
 	measure_wake_up_time();
 	return error;
