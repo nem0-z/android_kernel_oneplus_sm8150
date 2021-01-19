@@ -65,6 +65,10 @@ $(warning Detected assembler with broken .inst; disassembly will be unreliable)
   endif
 endif
 
+ifeq ($(CONFIG_ARCH_SM8150), y)
+KBUILD_CFLAGS  += -mcpu=cortex-a76.cortex-a55
+endif
+
 ifeq ($(CONFIG_COMPAT_VDSO), y)
   CROSS_COMPILE_ARM32 ?= $(CONFIG_CROSS_COMPILE_ARM32:"%"=%)
 
