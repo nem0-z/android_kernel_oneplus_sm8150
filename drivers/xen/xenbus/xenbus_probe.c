@@ -718,6 +718,23 @@ static int __init xenbus_probe_initcall(void)
 
 	return 0;
 }
+
+static int xenbus_probe_thread(void *unused)
+{
+	DEFINE_WAIT(w);
+
+	/*
+	 * We actually just want to wait for *any* trigger of xb_waitq,
+	 * and run xenbus_probe() the moment it occurs.
+	 */
+	prepare_to_wait(&xb_waitq, &w, TASK_INTERRUPTIBLE);
+	schedule();
+	finish_wait(&xb_waitq, &w);
+
+	DPRINTK("probing");
+	xenbus_probe();
+	return 0;
+}
 device_initcall(xenbus_probe_initcall);
 
 int xen_set_callback_via(uint64_t via)
