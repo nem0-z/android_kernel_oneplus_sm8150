@@ -57,19 +57,6 @@
 #define KGSL_PWR_DEL_LIMIT 1
 #define KGSL_PWR_SET_LIMIT 2
 
-/*
- * The effective duration of qos request in usecs at queue time.
- * After timeout, qos request is cancelled automatically.
- * Kept 64ms default, inline with default GPU idle time.
- */
-#define KGSL_L2PC_QUEUE_TIMEOUT	(64 * 1000)
-
-/*
- * The effective duration of qos request in usecs at wakeup time.
- * After timeout, qos request is cancelled automatically.
- */
-#define KGSL_L2PC_WAKEUP_TIMEOUT (10 * 1000)
-
 enum kgsl_pwrctrl_timer_type {
 	KGSL_PWR_IDLE_TIMER,
 };
@@ -278,7 +265,5 @@ int kgsl_active_count_wait(struct kgsl_device *device, int count);
 void kgsl_pwrctrl_busy_time(struct kgsl_device *device, u64 time, u64 busy);
 void kgsl_pwrctrl_set_constraint(struct kgsl_device *device,
 			struct kgsl_pwr_constraint *pwrc, uint32_t id);
-void kgsl_pwrctrl_update_l2pc(struct kgsl_device *device,
-			unsigned long timeout_us);
 void kgsl_pwrctrl_set_default_gpu_pwrlevel(struct kgsl_device *device);
 #endif /* __KGSL_PWRCTRL_H */
