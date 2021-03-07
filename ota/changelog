@@ -5,10 +5,17 @@ Type: Stable
 Device: OnePlus 7/T/Pro
 Compiler: Proton Clang 13.0.0
 Branch: master
-Build Number: 1.9
+Build Number: 2.0
 ```
 ## Changelog
 ```
+-2.0:
+-Kernel upstreamed to latest 4.14.224
+-Improve gaming performance and battery usage by speeding up PID map reads
+-Increase worker thread priority for some kgsl events
+-Eliminate CONFIG_MODULES limitation from JIT
+-Drop CPU_INPUT_BOOST and DEVFREQ_INPUT_BOOST values
+-Switch back to 12ms PELT half life
 -1.9:
 -Scheduler improvements
 *Disable RUNTIME_SHARE and TTWU_QUEUE scheduler features
