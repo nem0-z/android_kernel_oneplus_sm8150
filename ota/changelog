@@ -5,10 +5,18 @@ Type: Stable
 Device: OnePlus 7/T/Pro
 Compiler: Proton Clang 13.0.0
 Branch: master
-Build Number: 2.0.1
+Build Number: 2.2
 ```
 ## Changelog
 ```
+-2.2:
+-Use power efficient workqueues where possible
+-Refine GPU clock (190MHz now the default min)
+-RCU backports from mainline
+-Lot of scheduler code backports and improvements
+-Reconcile latest ashmem patches from sultan (caused issues for guacamoleb users)
+-Improved boot time
+-Update Wireguard to 20210219
 -2.0:
 -Kernel upstreamed to latest 4.14.224
 -Improve gaming performance and battery usage by speeding up PID map reads
