@@ -9,6 +9,11 @@ Build Number: 3.0
 ```
 ## Changelog
 ```
+-3.1:
+-Kernel upstreamed to 4.14.227
+-Lots of scheduler patches from mainline
+-Optimized PID map reads (improved performance and battery life)
+-Update 12ms PELT half-life values
 -3.0:
 -Kernel upstreamed to Linux Stable 4.14.225
 -F2FS upstreamed to latest f2fs-5.12-rc1 tag
