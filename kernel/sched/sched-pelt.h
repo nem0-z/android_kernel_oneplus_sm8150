@@ -51,6 +51,11 @@ static const u32 runnable_avg_yN_inv[] = {
         0xa14517cb,0x9837f050,0x8facd61d,0x879c7c96,
 };
 
+static const u32 runnable_avg_yN_sum[] = {
+	    0,  966, 1878, 2739, 3551, 4318, 5042, 5725, 6370, 6979, 7553,
+	 8095, 8607,
+};
+
 #define LOAD_AVG_PERIOD 12
 #define LOAD_AVG_MAX 18227
 #define LOAD_AVG_MAX_N 539
