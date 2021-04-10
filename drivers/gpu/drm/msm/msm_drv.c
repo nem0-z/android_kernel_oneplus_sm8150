@@ -2272,6 +2272,11 @@ static void msm_pdev_shutdown(struct platform_device *pdev)
 		DRM_ERROR("invalid msm drm private node\n");
 		return;
 	}
+	struct drm_device *drm = platform_get_drvdata(pdev);
+	struct msm_drm_private *priv = drm ? drm->dev_private : NULL;
+
+	if (!priv || !priv->kms)
+		return;
 
 	msm_lastclose(ddev);
 
