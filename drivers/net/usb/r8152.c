@@ -7915,7 +7915,6 @@ static void rtl8153_up(struct r8152 *tp)
 	r8153_u1u2en(tp, false);
 	r8153_u2p3en(tp, false);
 	r8153_aldps_en(tp, false);
-	r8153_mac_clk_spd(tp, false);
 	r8153_first_init(tp);
 
 	ocp_data = ocp_read_byte(tp, MCU_TYPE_PLA, 0xe90a);
@@ -7961,7 +7960,6 @@ static void rtl8153_down(struct r8152 *tp)
 	r8153_u2p3en(tp, false);
 	r8153_power_cut_en(tp, false);
 	r8153_aldps_en(tp, false);
-	r8153_mac_clk_spd(tp, true);
 	r8153_enter_oob(tp);
 	r8153_aldps_en(tp, true);
 	rtl_speed_down(tp);
